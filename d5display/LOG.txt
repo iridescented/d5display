@@ -1,0 +1,33 @@
+
+avrdude: warning: cannot set sck period. please check for usbasp firmware update.
+avrdude: AVR device initialized and ready to accept instructions
+
+Reading | ################################################## | 100% 0.01s
+
+avrdude: Device signature = 0x1e960a
+avrdude: NOTE: FLASH memory has been specified, an erase cycle will be performed
+         To disable this feature, specify the -D option.
+avrdude: erasing chip
+avrdude: warning: cannot set sck period. please check for usbasp firmware update.
+avrdude: reading input file "prog.hex"
+avrdude: input file prog.hex auto detected as Intel Hex
+avrdude: writing flash (47344 bytes):
+
+Writing | ################################################## | 100% 8.58s
+
+avrdude: 47344 bytes of flash written
+avrdude: verifying flash memory against prog.hex:
+avrdude: load data flash data from input file prog.hex:
+avrdude: input file prog.hex auto detected as Intel Hex
+avrdude: input file prog.hex contains 47344 bytes
+avrdude: reading on-chip flash data:
+
+Reading | ################################################## | 100% 7.11s
+
+avrdude: verifying ...
+avrdude: 47344 bytes of flash verified
+
+avrdude: safemode: Fuses OK
+
+avrdude done.  Thank you.
+
