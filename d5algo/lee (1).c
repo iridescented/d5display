@@ -7,31 +7,31 @@
 
 // define input located in Port A
 // ADC inputs
-#define PV PA2
-#define WIND PA3
-#define BUS_CURRENT PA1
-#define BUS_VOLT PA0
+#define PV PA0
+#define WIND PA1
+#define BUS_CURRENT PA2
+#define BUS_VOLT PA3
 
 // Digital Inputs
-#define LOAD1 PD2
-#define LOAD2 PD3
-#define LOAD3 PD4
+#define LOAD1 PA4
+#define LOAD2 PA5
+#define LOAD3 PA6
 
 // define output located in Port D
 #define MAINS PD7 // PWM
 // Digital Outputs
-#define LSW1 PA4
-#define LSW2 PA5
-#define LSW3 PA6
-#define DB PD5
-#define CB PD6
+#define LSW1 PD4
+#define LSW2 PD5
+#define LSW3 PD6
+
+#define DB PD3
+#define CB PD2
 
 #define CLKFREQ 12000000 // 12MHz
 #define MAXADC 1023
 #define MAXBATTERY 10 // 10ah battery
 
 // Display data
-float count_sustain(uint16_t wind, uint16_t pv);
 float count_power(uint16_t busvolt);
 
 void pwm(void);
@@ -47,15 +47,16 @@ void bat_count(void);
 // outputs
 void digital_outputs(void);
 void MainsReq(double a);
-uint16_t Battery_Capacity;
+uint16_t Battery_Capacity = 0;
 void Battery(uint16_t batt);
 // global variables
 uint16_t LoadCall1 = 0;
 uint16_t LoadCall2 = 0;
 uint16_t LoadCall3 = 0;
-uint16_t DBattery = 0;
-uint16_t CBattery = 0;
+uint16_t DBattery;
+uint16_t CBattery;
 float sustain, main_current;
+float power = 0;
 uint16_t pv = 0;
 uint16_t wind = 0;
 uint16_t bc = 0;
@@ -72,25 +73,11 @@ double Load[3] = {1.20, 2.00, 0.80};
 uint8_t CallState[3] = {0, 1, 0};
 uint8_t SupplyState[3] = {0, 0, 0}; //?Unentered
 
-float count_sustain(uint16_t wind, uint16_t pv)
-{ // count the sustainable energy
-	float a, b;
-	a = ((float)pv * 3.3) / MAXADC;	  // varying from 0 to 5V
-	b = ((float)wind * 3.3) / MAXADC; // varying from 0 to 5V
-	sustain = a + b;
-	return sustain;
-}
-float count_power(uint16_t busvolt)
-{
-	float a, b;
-	a = main_current;
-	b = ((float)busvolt * 2.83) / MAXADC;
-	return a * b;
-}
-
 void digital_inputs(void)
 {
-	DDRA &= ~(_BV(LOAD1)) | ~(_BV(LOAD2)) | ~(_BV(LOAD3)); // Set bit 4 to 6 of Port A as inputs
+	DDRA &= ~_BV(LOAD1);
+	DDRA &= ~_BV(LOAD2);
+	DDRA &= ~_BV(LOAD3); // Set bit 4 to 6 of Port A as inputs
 }
 void digital_outputs(void)
 {
@@ -108,11 +95,11 @@ ISR(TIMER1_COMPA_vect)
 {
 	if (CBattery == 1)
 	{
-		count++;
+		Battery_Capacity++;
 	}
 	else if (DBattery == 1)
 	{
-		count1++;
+		Battery_Capacity--;
 	}
 	else
 	{
@@ -128,27 +115,16 @@ void pwm(void)
 }
 void timer_interrupt(void)
 {
+	// TCCR1A |= _BV(COM0A1) | _BV(COM0A0);
+	TIMSK1 |= _BV(OCIE1A);			 // enable timer interrupt for timer1
+	TCCR1B |= _BV(WGM12);			 // Clear Timer on Compare Match mode (CTC)
 	TCCR1B |= _BV(CS12) | _BV(CS10); // F_CPU = 12MHz and pre-scaler = 1024, F_CLK = 11.71kHz
-	OCR1A |= 5858;
+	OCR1A = 5858;					 // 1 seconds
 }
 void MainsReq(double a)
 {
-	OCR2A = a * 25;
+	OCR2A = a * 25.5;
 	main_current = a * 0.2;
-}
-
-void bat_count(void)
-{
-	if (count == 60)
-	{
-		Battery_Capacity++;
-		count = 0;
-	}
-	else if (count1 == 60)
-	{
-		Battery_Capacity--;
-		count1 = 0;
-	}
 }
 
 void system()
@@ -170,7 +146,7 @@ void system()
 			PORTD &= ~_BV(CB);
 			PORTD &= ~_BV(DB);
 			break;
-		case 30 ... 39: // have 3.0A
+		case 30 ... 39: // have 3.0A to 3.9A
 			if ((Battery_Capacity > 0) && ((sustain * 10) == 30))
 			{ // check if sustain is 3A or not, draw 1A, now have 4A
 				DBattery = 1;
@@ -184,6 +160,7 @@ void system()
 				SupplyState[2] = 1;
 				// LoadSw1 = 1; LoadSw2 = 1;LoadSw3 = 1;
 			}
+
 			else
 			{ // no battery or sustain not equal to 3A
 				MainsReq((40 - (int)(sustain * 10)) * 0.5);
@@ -261,7 +238,6 @@ void system()
 				CBattery = 0;
 				PORTD &= ~_BV(CB);
 				PORTD |= _BV(DB);
-				MainsReq(9.5); // 1.9A, now have 4A
 				PORTD |= _BV(LSW1) | _BV(LSW2) | _BV(LSW3);
 				SupplyState[0] = 1;
 				SupplyState[1] = 1;
@@ -301,7 +277,6 @@ void system()
 			else
 			{ // 0.9A
 				MainsReq((20 - (int)(sustain * 10)) * 0.5);
-				MainsReq(5.5); // 1.1A, now have 2A
 				PORTD |= _BV(LSW1) | _BV(LSW3);
 				SupplyState[0] = 1;
 				SupplyState[2] = 1;
@@ -460,7 +435,6 @@ void system()
 			else
 			{ // 1.1A
 				MainsReq((12 - (int)(sustain * 10)) * 0.5);
-				MainsReq(0.5); // 0.1A, now have 1.2
 				PORTD |= _BV(LSW1);
 				SupplyState[0] = 1;
 				PORTD &= ~_BV(LSW2); // give up load 2, not enough current
@@ -636,8 +610,9 @@ void system()
 			break;
 		}
 		break;
-	case 4:								  // 100, demand = 1.2A
-		PORTD &= ~_BV(LSW2) | ~_BV(LSW3); // load 2, load 3 Not calling //LoadSw2 = 0; //LoadSw3 = 0;
+	case 4: // 100, demand = 1.2A
+		PORTD &= ~_BV(LSW2);
+		PORTD &= ~_BV(LSW3); // load 2, load 3 Not calling //LoadSw2 = 0; //LoadSw3 = 0;
 		SupplyState[1] = 0;
 		SupplyState[2] = 0;
 		switch ((int)(sustain * 10))
@@ -695,8 +670,8 @@ void system()
 				DBattery = 1;
 			}
 			else
-			{				   // 0.2A
-				MainsReq(5.0); // 1A, now have 1.2A
+			{ // 0.2A
+				MainsReq((12 - (int)(sustain * 10)) * 0.5);
 				PORTD |= _BV(LSW1);
 				SupplyState[0] = 1;
 				// LoadSw1 = 1;
@@ -865,8 +840,9 @@ void system()
 			break;
 		}
 		break;
-	case 2:								  // 010, demand = 2A
-		PORTD &= ~_BV(LSW1) | ~_BV(LSW3); // load 1 and load 3 not calling
+	case 2: // 010, demand = 2A
+		PORTD &= ~_BV(LSW1);
+		PORTD &= ~_BV(LSW3); // load 1 and load 3 not calling
 		SupplyState[0] = 0;
 		SupplyState[2] = 0;
 		// LoadSw1 = 1; LoadSw3 = 1;
@@ -962,8 +938,9 @@ void system()
 			break;
 		}
 		break;
-	case 1:								  // Load 3 calliing, 001
-		PORTD &= ~_BV(LSW1) | ~_BV(LSW2); // load 1, load 2 Not calling //LoadSw1 = 0; //LoadSw2 = 0;
+	case 1: // Load 3 calliing, 001
+		PORTD &= ~_BV(LSW1);
+		PORTD &= ~_BV(LSW2); // load 1, load 2 Not calling //LoadSw1 = 0; //LoadSw2 = 0;
 		SupplyState[0] = 0;
 		SupplyState[1] = 0;
 		switch ((int)(sustain * 10))
@@ -993,7 +970,7 @@ void system()
 			PORTD |= _BV(LSW3);
 			SupplyState[2] = 1;
 			// LoadSw3 = 1;
-			PORTD |= _BV(CB);
+			PORTD &= ~_BV(CB);
 			PORTD &= ~_BV(DB);
 			CBattery = 1;
 			DBattery = 0;
@@ -1020,8 +997,10 @@ void system()
 			break;
 		}
 		break;
-	case 0:											   // no demand, 000
-		PORTD &= ~_BV(LSW1) | ~_BV(LSW2) | ~_BV(LSW3); // load 1,load 2 and load 3 not calling
+	case 0: // no demand, 000
+		PORTD &= ~_BV(LSW1);
+		PORTD &= ~_BV(LSW2);
+		PORTD &= ~_BV(LSW3); // load 1,load 2 and load 3 not calling
 		SupplyState[0] = 0;
 		SupplyState[1] = 0;
 		SupplyState[2] = 0;
@@ -1043,6 +1022,8 @@ void system()
 			break;
 
 		default: // sustainable energy too low, not worth to charge battery
+			// PORTD &= ~_BV(LSW1) | ~_BV(LSW2) | ~_BV(LSW3);//load 1, load 2 and load 3 Not calling
+			// SupplyState[0] = 0; SupplyState[1] = 0; SupplyState[2] = 0;
 			// LoadSw1 = 0;
 			// LoadSw2 = 0;
 			// LoadSw3 = 0;
@@ -1083,15 +1064,15 @@ int main(void)
 	// rectangle background = {0,LCDWIDTH-1,0,LCDHEIGHT-1};
 	// fill_rectangle(background,WHITE);
 
-	// double result;
-	// init_debug_uart0();
 	digital_inputs();
 	digital_outputs();
 	pwm();
-	timer_interrupt();
-	in_adc();
 	sei(); // enable interrupt
+	timer_interrupt();
+	// double result;
+	// init_debug_uart0();
 
+	in_adc();
 	uint16_t e = 0, f = 0, g = 0, h = 0;
 	double j = 0.0, k = 0.0, l = 0.0, m = 0.0;
 	for (;;)
@@ -1110,23 +1091,24 @@ int main(void)
 
 		mux(2); // bus current
 		g = read_adc();
-		l = ((double)g * 10.0) / MAXADC;
+		l = ((double)g * 7.07106781187) / MAXADC; // 10/sqrt(2)
 		// printf("ADC value = %d , BusCurrent = %d \n", g, (int)l);
 
 		mux(3); // bus voltage
 		h = read_adc();
-		m = ((double)h * 2.83) / MAXADC;
+		m = ((double)h * 2.85) / MAXADC;
 		// printf("ADC value = %d , BusVoltage = %d \n", h, (int)m);
 
 		sustain = j + k;
 		system();
 
+		power = power + ((m * l) / 1000);
 		Sources[2] = j;
 		Sources[1] = k;
 		Sources[0] = main_current;
 		BasicInfo[2] = l;
 		BasicInfo[1] = m;
-		BasicInfo[0] = count_power(h);
+		BasicInfo[0] = power;
 		CallState[0] = LoadCall1;
 		CallState[1] = LoadCall2;
 		CallState[2] = LoadCall3;
@@ -1135,7 +1117,7 @@ int main(void)
 		Load[2] = (LoadCall3) ? 0.80 : 0.00;
 
 		BatteryState = CBattery * 1 + DBattery * -1;
-		battery_percent = Battery_Capacity;
+		battery_percent = (Battery_Capacity / 10);
 		Update(battery_percent, BasicInfo, BatteryState, Sources, Load, CallState, SupplyState);
 
 		// int loop = 0;
