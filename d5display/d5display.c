@@ -167,6 +167,7 @@ void Update(uint16_t battery_percent, double *BasicInfo, uint8_t BatteryState, d
 		fill_rectangle(batt_lvl[4 - i], batt_col[5]);
 	for (i = 0; i < battery_percent / 20; i++)
 		fill_rectangle(batt_lvl[i], batt_col[battery_percent / 20 - 1]);
+	cprint("     ", 210, 100);
 	intprint(battery_percent, 210, 100);
 
 	for (i = 0; i < 3; i++)

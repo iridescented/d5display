@@ -1040,8 +1040,8 @@ void system()
 
 void in_adc(void)
 {
-	ADCSRA |= _BV(ADEN);									  // Enable ADC
-	ADCSRA |= ADCSRA |= _BV(ADPS0) | _BV(ADPS1) | _BV(ADPS2); // Set pre-scaler to 128 F_CPU = 93.75kHz
+	ADCSRA |= _BV(ADEN);							// Enable ADC
+	ADCSRA |= _BV(ADPS0) | _BV(ADPS1) | _BV(ADPS2); // Set pre-scaler to 128 F_CPU = 93.75kHz
 }
 void mux(uint16_t a)
 {
