@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "iosfwd": "cpp",
-        "sleep.h": "c"
+        "sleep.h": "c",
+        "stdio.h": "c"
     }
 }
